@@ -28,4 +28,4 @@ requires:
   Data::Validate::URI: '0'
   Scalar::Util: '0'
   XMLRPC::Lite: '0'
-version: '0.003'
+version: '0.004'
