@@ -17,5 +17,10 @@ no_index:
   directory:
     - t
     - inc
-requires: {}
-version: '0.001'
+requires:
+  Carp: '0'
+  Clone: '0'
+  Data::Validate::URI: '0'
+  Scalar::Util: '0'
+  XMLRPC::Lite: '0'
+version: '0.002'
