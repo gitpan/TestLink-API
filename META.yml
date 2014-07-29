@@ -28,4 +28,5 @@ requires:
   Data::Validate::URI: '0'
   Scalar::Util: '0'
   XMLRPC::Lite: '0'
-version: '0.004'
+  perl: '5.010'
+version: '0.005'
