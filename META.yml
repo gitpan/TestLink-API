@@ -2,31 +2,18 @@
 abstract: unknown
 author:
   - unknown
-build_requires:
-  Class::Inspector: '0'
-  ExtUtils::MakeMaker: '0'
-  MIME::Base64: '0'
-  Prompt::Timeout: '0'
-  Test::Fatal: '0'
-  Test::More: '0'
-configure_requires:
-  ExtUtils::MakeMaker: '0'
+build_requires: {}
 dynamic_config: 1
-generated_by: 'ExtUtils::MakeMaker version 6.98, CPAN::Meta::Converter version 2.141520'
+generated_by: 'ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.120921'
 license: unknown
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
-  version: '1.4'
+  version: 1.4
 name: TestLink-API
 no_index:
   directory:
     - t
     - inc
-requires:
-  Carp: '0'
-  Clone: '0'
-  Data::Validate::URI: '0'
-  Scalar::Util: '0'
-  XMLRPC::Lite: '0'
-  perl: '5.010'
-version: '0.005'
+resources:
+  repository: https://github.com/teodesian/TestLink-Perl.git
+version: 0.006
