@@ -4,7 +4,7 @@
       "George S. Baugh <teodesian@cpan.org>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.98, CPAN::Meta::Converter version 2.142060",
+   "generated_by" : "ExtUtils::MakeMaker version 6.98, CPAN::Meta::Converter version 2.120630",
    "license" : [
       "artistic_2"
    ],
@@ -64,5 +64,5 @@
          "web" : "https://github.com/teodesian/TestLink-Perl"
       }
    },
-   "version" : "0.007"
+   "version" : "0.008"
 }
