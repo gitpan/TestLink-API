@@ -24,7 +24,6 @@ WriteMakefile(
     },
     META_MERGE => {
         'meta-spec' => { version => 2 },
-        name        => 'TestLink::API',
         abstract    => "Provides an interface to TestLink's XMLRPC api",
         author      => ['George S. Baugh <teodesian@cpan.org>'],
         resources   => {
@@ -61,7 +60,7 @@ WriteMakefile(
         provides => {
             'TestLink::API' => {
                 file    => 'lib/TestLink/API.pm',
-                version => '0.009'
+                version => '0.010'
             }
         }
     }

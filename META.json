@@ -12,7 +12,7 @@
       "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
       "version" : "2"
    },
-   "name" : "TestLink::API",
+   "name" : "TestLink-API",
    "no_index" : {
       "directory" : [
          "t",
@@ -55,7 +55,7 @@
    "provides" : {
       "TestLink::API" : {
          "file" : "lib/TestLink/API.pm",
-         "version" : "0.009"
+         "version" : "0.010"
       }
    },
    "release_status" : "stable",
@@ -66,5 +66,5 @@
          "web" : "https://github.com/teodesian/TestLink-Perl"
       }
    },
-   "version" : "0.009"
+   "version" : "0.010"
 }

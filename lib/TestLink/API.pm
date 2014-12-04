@@ -1,6 +1,6 @@
 package TestLink::API;
 {
-    $TestLink::API::VERSION = '0.009';
+    $TestLink::API::VERSION = '0.010';
 }
 
 
@@ -42,6 +42,7 @@ It is by no means exhaustively implementing every TestLink API function.  Design
 =cut
 
 
+use 5.010;
 use strict;
 use warnings;
 use Carp;
@@ -1493,9 +1494,17 @@ __END__
 
 L<XMLRPC::Lite>
 
+=head1 REPOSITORY
+
+L<https://github.com/teodesian/TestLink-Perl>
+
 =head1 AUTHOR
 
 George Baugh <teodesian@cpan.org>
+
+=head1 CONTRIBUTORS
+
+Neil Bowers <neil@bowers.com> - Fixed minor distribution issues for 0.010
 
 =head1 SPECIAL THANKS
 
