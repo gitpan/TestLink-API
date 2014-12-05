@@ -1,46 +1,8 @@
+# ABSTRACT: Provides an interface to TestLink's XMLRPC api via HTTP
+# PODNAME: TestLink::API
+
 package TestLink::API;
-{
-    $TestLink::API::VERSION = '0.010';
-}
-
-
-=head1 NAME
-
-TestLink::API - Provides an interface to TestLink's XMLRPC api via HTTP
-
-=head1 SYNOPSIS
-
-    use TestLink::API;
-
-    my $tl = TestLink::API->new('http://tl.test/testlink/lib/api/xmlrpc/v1/xmlrpc.php', 'gobbledygook123');
-
-    #Look up test definitions
-    my $projects = $tl->getProjects();
-    my $suites = $tl->getTLDTestSuitesForProject($projects->[0]->{'id'});
-    my $childsuites = $tl->getTestSuitesForTestSuite($suites->[0]->{'id'});
-    my $tests = $tl->getTestCasesForTestSuite($childsuites->[0]->{'id'});
-
-    #Look up test plans/builds
-    my $plans = $tl->getTestPlansForProject($projects->[0]->{'id'});
-    my $tests2 = $tl->getTestCasesForTestPlan($plans->[0]->{'id'});
-    my $builds = $tl->getBuildsForTestPlan($plans->[0]->{'id'});
-
-    #Set results
-    my $testResults = doSomethingReturningBoolean();
-    my $results = $tl->reportTCResult($tests2->[0]->{'id'},$plans->[0]->{'id'},$builds->[0]->{'id'}, $testResults ? 'p' : 'f');
-    $tl->uploadExecutionAttachment($results->{'id'},'test.txt','text/plain',encode_base64('MOO MOO MOOOOOO'),'bovine emissions','whee')
-
-=head1 DESCRIPTION
-
-C<TestLink::API> provides methods to access an existing TestLink account.  You can then do things like look up tests, set statuses and create builds from lists of tests.
-The getter methods cache the test tree up to whatever depth is required by your getter calls.  This is to speed up automated creation/reading/setting of the test db based on existing automated tests.
-Cache expires at the end of script execution. (TODO memcache controlled by constructor, with create methods invalidating cache?)
-Getter/setter methods that take args assume that the relevant project/testsuite/test/plan/build provided exists (TODO: use cache to check exists, provide more verbose error reason...), and returns false if not.
-Create methods assume desired entry provided is not already in the DB (TODO (again): use cache to check exists, provide more verbose error reason...), and returns false if not.
-It is by no means exhaustively implementing every TestLink API function.  Designed with TestLink 1.9.9, but will likely work on (some) other versions.
-
-=cut
-
+$TestLink::API::VERSION = '0.011';
 
 use 5.010;
 use strict;
@@ -53,25 +15,6 @@ use Clone 'clone';
 
 use XMLRPC::Lite;
 
-=head1 CONSTRUCTOR
-
-=head2 B<new (api_url, key)>
-
-Creates new C<TestLink::API> object.
-
-=over 4
-
-=item C<API URL> - URL to your testlink API endpoint.
-
-=item C<KEY> - TestLink API key.
-
-=back
-
-Returns C<TestLink::API> object if login is successful.
-
-    my $tl = TestLink::API->new('http://tl.test/testlink/lib/api/xmlrpc/v1/xmlrpc.php', 'gobbledygook123');
-
-=cut
 
 sub new {
     my ($class,$apiurl,$apikey) = @_;
@@ -95,18 +38,6 @@ sub new {
     return $self;
 }
 
-=head1 PROPERTIES
-
-=over 4
-
-apiurl and apikey can be accessed/set:
-
-$url = $tl->apiurl;
-$tl = $tl->apiurl('http//some.new.url/foo.php');
-
-=back
-
-=cut
 
 #EZ get/set of obj vars
 sub AUTOLOAD {
@@ -129,31 +60,6 @@ sub AUTOLOAD {
     confess("$AUTOLOAD not accessible property") unless $AUTOLOAD =~ /DESTROY$/;
 }
 
-=head1 CREATE METHODS
-
-=head2 B<createTestPlan (name, project, [notes, active, public])>
-
-Creates new Test plan with given name in the given project.
-
-=over 4
-
-=item STRING C<NAME> - Desired test plan name.
-
-=item STRING C<PROJECT> - The name of some project existing in TestLink.
-
-=item STRING C<NOTES> (optional) - Additional description of test plan.  Default value is 'res ipsa loquiter'
-
-=item BOOLEAN C<ACTIVE> (optional) - Whether or not the test plan is active.  Default value is true.
-
-=item BOOLEAN C<PUBLIC> (optional) - Whether or not the test plan is public.  Default is true.
-
-=back
-
-Returns (integer) test plan ID if creation is successful.
-
-    my $tpid = $tl->createTestPlan('shock&awe', 'enduringfreedom');
-
-=cut
 
 sub createTestPlan {
     my ($self,$name,$project,$notes,$active,$public) = @_;
@@ -182,25 +88,6 @@ sub createTestPlan {
     return 0;
 }
 
-=head2 B<createBuild (test_plan_id, name, [notes])>
-
-Creates new 'Build' (test run in common parlance) from given test plan having given name and notes.
-
-=over 4
-
-=item INTEGER C<TEST PLAN ID> - ID of test plan to base test run on.
-
-=item STRING C<NAME> - Desired name for test run.
-
-=item STRING C<NOTES> (optional) - Additional description of run.  Default value is 'res ipsa loquiter'.
-
-=back
-
-Returns true if case addition is successful, false otherwise.
-
-    $tl->createBuild(1234, "Bossin' up", 'Crushing our enemies, seeing them driven before us and hearing the lamentations of their support engineers.');
-
-=cut
 
 sub createBuild {
     my ($self,$plan_id,$name,$notes) = @_;
@@ -223,30 +110,6 @@ sub createBuild {
     return 0;
 }
 
-=head2 B<createTestSuite (project_id, name, [details, parent_testsuite_id, order])>
-
-Creates new TestSuite (folder of tests) in the database of test specifications under given project id having given name and details.
-Optionally, can have a parent test suite (this is an analog to a hierarchical file tree after all) and what order to have this suite be amongst it's peers.
-
-=over 4
-
-=item INTEGER C<PROJECT ID> - ID of project this test suite should be under.
-
-=item STRING C<NAME> - Desired name of test suite.
-
-=item STRING C<DETAILS> (optional) - Description of test suite.  Default value is 'res ipsa loquiter'.
-
-=item INTEGER C<PARENT TESTSUITE ID> (optional) - Parent test suite ID.  Defaults to top level of project.
-
-=item INTEGER C<ORDER> (optional) - Desired order amongst peer testsuites.  Defaults to last in list.
-
-=back
-
-Returns (integer) build ID on success, false otherwise.
-
-    $tl->createTestSuite(1, 'broken tests', 'Tests that should be reviewed', 2345, -1);
-
-=cut
 
 sub createTestSuite {
     my ($self,$project_id,$name,$details,$parent_id,$order) = @_;
@@ -274,32 +137,6 @@ sub createTestSuite {
     return 0;
 }
 
-=head2 B<createTestProject (name, case_prefix, [notes, options, active, public])>
-
-Creates new Project (Database of testsuites/tests) with given name and case prefix.
-Optionally, can have notes, options, set the project as active/inactive and public/private.
-
-=over 4
-
-=item STRING C<NAME> - Desired name of project.
-
-=item STRING C<CASE PREFIX> - Desired prefix of project's external test case IDs.
-
-=item STRING C<NOTES> (optional) - Description of project.  Default value is 'res ipsa loquiter'.
-
-=item HASHREF{BOOLEAN} C<OPTIONS> (optional) - Hash with keys: requirementsEnabled,testPriorityEnabled,automationEnabled,inventoryEnabled.
-
-=item BOOLEAN C<ACTIVE> (optional) - Whether to mark the project active or not.  Default True.
-
-=item BOOLEAN C<PUBLIC> (optional) - Whether the project is public or not.  Default true.
-
-=back
-
-Returns (integer) project ID on success, false otherwise.
-
-    $tl->createTestProject('Widgetronic 4000', 'Tests for the whiz-bang new product', {'inventoryEnabled=>true}, true, true);
-
-=cut
 
 #XXX probably should not use
 sub createTestProject {
@@ -330,39 +167,6 @@ sub createTestProject {
 
 }
 
-=head2 B<createTestCase (name, test_suite_id, test_project_id, author, summary, steps, preconditions, execution, order)>
-
-Creates new test case with given test suite id and project id.
-Author, Summary and Steps are mandatory for reasons that should be obvious to any experienced QA professional.
-Execution type and Test order is optional.
-
-=over 4
-
-=item STRING C<NAME> - Desired name of test case.
-
-=item INTEGER C<TEST SUITE ID> - ID of parent test suite.
-
-=item INTEGER C<TEST PROJECT ID> - ID of parent project
-
-=item STRING C<AUTHOR> - Author of test case.
-
-=item STRING C<SUMMARY> - Summary of test case.
-
-=item STRING C<STEPS> - Test steps.
-
-=item STRING C<PRECONDITIONS> - Prereqs for running the test, if any.
-
-=item STRING C<EXECUTION> (optional) - Execution type.  Defaults to 'manual'.
-
-=item INTEGER C<ORDER> (optional) - Order of test amongst peers.
-
-=back
-
-Returns (HASHREF) with Test Case ID and Test Case External ID on success, false otherwise.
-
-    $tl->createTestCase('Verify Whatsit Throbs at correct frequency', 123, 456, 'Gnaeus Pompieus Maximus', 'Make sure throbber on Whatsit doesn't work out of harmony with other throbbers', '1. Connect measurement harness. 2. ??? 3. PROFIT!', 'automated', 2);
-
-=cut
 
 sub createTestCase {
     my ($self,$test_name,$test_suite_id,$test_project_id,$author_name,$summary,$steps,$preconditions,$execution,$order) = @_;
@@ -390,37 +194,6 @@ sub createTestCase {
 
 }
 
-=head1 SETTER METHODS
-
-=head2 B<reportTCResult (case_id, test_plan_id, build_id, status, [platform, notes, bug id])>
-
-Report results of a test case with a given ID, plan and build ID.  Set case results to status given.
-Platform is mandatory if available, otherwise optional.
-Notes and Bug Ids for whatever tracker you use are optional.
-
-=over 4
-
-=item INTEGER C<CASE ID> - Desired test case.
-
-=item INTEGER C<TEST PLAN ID> - ID of relevant test plan.
-
-=item INTEGER C<BUILD ID> - ID of relevant build.
-
-=item STRING C<STATUS> - Desired Test Status Code.  Codes not documented anywhere but in your cfg/const.inc.php of the TestLink Install.
-
-=item STRING C<PLATFORM> (semi-optional) - Relevant platform tested on.  Accepts both platform name and ID, if it looks_like_number, uses platform_id
-
-=item STRING C<NOTES> (optional) - Relevant information gleaned during testing process.
-
-=item STRING C<BUG ID> (optional) - Relevant bug ID for regression tests, or if you auto-open bugs based on failures.
-
-=back
-
-Returns project ID on success, false otherwise.
-
-    $tl->reportTCResult('T-1000', 7779311, 8675309, 'Tool Failure', 'Skynet Infiltration Model 1000', 'Catastrophic systems failure due to falling into vat of molten metal' 'TERMINATOR-2');
-
-=cut
 
 sub reportTCResult {
     my ($self,$case_id,$plan_id,$build_id,$status,$platform,$notes,$bugid) = @_;
@@ -451,33 +224,6 @@ sub reportTCResult {
     return 0;
 }
 
-=head2 B<addTestCaseToTestPlan (test_plan_id, test_case_id, project_id, test_version, [sut_platform])>
-
-Creates new Test plan with given name in the given project.
-
-=over 4
-
-=item INTEGER C<TEST PLAN ID> - Desired test plan.
-
-=item STRING C<TEST CASE ID> - The 'external' name of some existing test in TestLink, e.g. TP-12.
-
-=item INTEGER C<PROJECT ID> - The ID of some project in testlink
-
-=item INTEGER C<TEST VERSION> - The desired version of the test to add.
-
-=item STRING C<SUT PLATFORM> (semi-optional) - The name of the desired platform to run on for this test (if any).
-
-=item INTEGER C<EXECUTION ORDER> (optional) - The order in which to execute this test amongst it's peers.
-
-=item INTEGER C<URGENCY> (optional) - The priority of the case in the plan.
-
-=back
-
-Returns true if case addition is successful.
-
-    $tl->addTestCaseToTestPlan(666, 'cp-90210', 121, '3.11', 'OS2/WARP', 3, 1);
-
-=cut
 
 #XXX this should be able to be done in batch
 sub addTestCaseToTestPlan {
@@ -502,31 +248,6 @@ sub addTestCaseToTestPlan {
     return 0;
 }
 
-=head2 B<uploadExecutionAttachment (execution_id,filename,mimetype,content,[title,description])>
-
-Uploads the provided file and associates it with the given execution.
-
-=over 4
-
-=item INTEGER C<EXECUTION ID> - ID of a successful execution, such as the id key from the hash that is returned by reportTCResult.
-
-=item STRING C<FILENAME> - The name you want this file to appear as.
-
-=item INTEGER C<MIMETYPE> - The mimetype of the file uploaded, so we can tell the browser what to do with it when downloaded
-
-=item INTEGER C<CONTENT> - The base64 encoded content of the file you want to upload.
-
-=item STRING C<TITLE> (optional) - A title for this attachment.
-
-=item INTEGER C<DESCRIPTION> (optional) - A short description of who/what/why this was attached.
-
-=back
-
-Returns true if attachment addition is successful.
-
-    $tl->uploadExecutionAttachment(1234, 'moo.txt', 'text/cow', APR::Base64::encode('MOO MOO MOOOOOO'), 'MOO', 'Test observed deranged bleatings of domestic ungulates, please investigate.');
-
-=cut
 
 sub uploadExecutionAttachment {
    my ($self,$execution_id,$filename,$filetype,$content,$title,$description) = @_;
@@ -549,31 +270,6 @@ sub uploadExecutionAttachment {
     return 0;
 }
 
-=head2 B<uploadTestCaseAttachment (case_id,filename,mimetype,content,[title,description])>
-
-Uploads the provided file and associates it with the given execution.
-
-=over 4
-
-=item INTEGER C<CASE ID> - ID of desired test case
-
-=item STRING C<FILENAME> - The name you want this file to appear as.
-
-=item INTEGER C<MIMETYPE> - The mimetype of the file uploaded, so we can tell the browser what to do with it when downloaded
-
-=item INTEGER C<CONTENT> - The base64 encoded content of the file you want to upload.
-
-=item STRING C<TITLE> (optional) - A title for this attachment.
-
-=item INTEGER C<DESCRIPTION> (optional) - A short description of who/what/why this was attached.
-
-=back
-
-Returns true if attachment addition is successful.
-
-    $tl->uploadTestCaseAttachment(1234, 'doStuff.t', 'text/perl', APR::Base64::encode($slurped_file_content), 'doStuff.t', 'Test File.');
-
-=cut
 
 sub uploadTestCaseAttachment {
    my ($self,$case_id,$filename,$filetype,$content,$title,$description) = @_;
@@ -597,17 +293,6 @@ sub uploadTestCaseAttachment {
 }
 
 
-=head1 GETTER METHODS
-
-=head2 B<getProjects ()>
-
-Get all available projects
-
-Returns array of project definition hashes, false otherwise.
-
-    $projects = $tl->getProjects;
-
-=cut
 
 sub getProjects {
     my $self = shift;
@@ -637,21 +322,6 @@ sub getProjects {
     return 0;
 }
 
-=head2 B<getProjectByName ($project)>
-
-Gets some project definition hash by it's name
-
-=over 4
-
-=item STRING C<PROJECT> - desired project
-
-=back
-
-Returns desired project def hash, false otherwise.
-
-    $projects = $tl->getProjectByName('FunProject');
-
-=cut
 
 sub getProjectByName {
     my ($self,$project) = @_;
@@ -670,21 +340,6 @@ sub getProjectByName {
     return 0;
 }
 
-=head2 B<getProjectByID ($project)>
-
-Gets some project definition hash by it's ID
-
-=over 4
-
-=item INTEGER C<PROJECT> - desired project
-
-=back
-
-Returns desired project def hash, false otherwise.
-
-    $projects = $tl->getProjectByID(222);
-
-=cut
 
 sub getProjectByID {
     my ($self,$project) = @_;
@@ -704,22 +359,6 @@ sub getProjectByID {
 }
 
 
-=head2 B<getTLDTestSuitesForProject (project_id,get_tests)>
-
-Gets the testsuites in the top level of a project
-
-=over 4
-
-=item STRING C<PROJECT ID> - desired project's ID
-=item BOOLEAN C<GET TESTS> - Get tests for suites returned, set them as 'tests' key in hash
-
-=back
-
-Returns desired testsuites' definition hashes, 0 on error and -1  when there is no such project.
-
-    $projects = $tl->getTLDTestSuitesForProject(123);
-
-=cut
 
 sub getTLDTestSuitesForProject {
     my ($self,$project,$get_tests) = @_;
@@ -760,23 +399,6 @@ sub getTLDTestSuitesForProject {
     return $result->result;
 }
 
-=head2 B<getTestSuitesForTestSuite (testsuite_id,get_tests)>
-
-Gets the testsuites that are children of the provided testsuite.
-
-=over 4
-
-=item STRING C<TESTSUITE ID> - desired parent testsuite ID
-=item STRING C<GET TESTS> - whether to get child tests as well
-
-=back
-
-Returns desired testsuites' definition hashes, false otherwise.
-
-    $suites = $tl->getTestSuitesForTestSuite(123);
-    $suitesWithCases = $tl->getTestSuitesForTestSuite(123,1);
-
-=cut
 
 sub getTestSuitesForTestSuite {
     my ($self,$tsid,$get_tests) = @_;
@@ -816,27 +438,6 @@ sub getTestSuitesForTestSuite {
 }
 
 
-=head2 B<getTestSuitesByName (project_id,testsuite_name,do_regex)>
-
-Gets the testsuite(s) that match given name inside of given project name.
-WARNING: this will slurp the enitre testsuite tree.  This can take a while on large projects, but the results are cached so that subsequent calls are not as onerous.
-
-=over 4
-
-=item STRING C<PROJECT ID> - ID of project holding this testsuite
-
-=item STRING C<TESTSUITE NAME> - desired parent testsuite name
-
-=item BOOLEAN C<DO REGEX> (optional) - whether or not PROJECT NAME is a regex (default false, uses 'eq' to compare).
-
-=back
-
-Returns desired testsuites' definition hashes, false otherwise.
-
-    $suites = $tl->getTestSuitesByName(321, 'hugSuite');
-    $suitesr = $tl->getTestSuitesByName(123, qr/^hug/, 1);
-
-=cut
 
 sub getTestSuitesByName {
     my ($self,$project_id,$testsuite_name,$do_regex) = @_;
@@ -861,21 +462,6 @@ sub getTestSuitesByName {
 
 }
 
-=head2 B<getTestSuiteByID (testsuite_id)>
-
-Gets the testsuite with the given ID.
-
-=over 4
-
-=item STRING C<TESTSUITE_ID> - Testsuite ID.
-
-=back
-
-Returns desired testsuite definition hash, false otherwise.
-
-    $tests = $tl->getTestSuiteByID(123);
-
-=cut
 
 sub getTestSuiteByID {
     my ($self,$testsuite_id) = @_;
@@ -893,25 +479,6 @@ sub getTestSuiteByID {
     return 0;
 }
 
-=head2 B<getTestCasesForTestSuite (testsuite_id,recurse,details)>
-
-Gets the testsuites that match given name inside of given project name.
-
-=over 4
-
-=item STRING C<TESTSUITE_ID> - Testsuite ID.
-
-=item BOOLEAN C<RECURSE> - Search testsuite tree recursively for tests below the provided testsuite
-
-=item BOOLEAN C<RETURNMODE> (optional) - whether or not to return more detailed test info (steps,summary,expected results).  Defaults to false.
-
-=back
-
-Returns desired case definition hashes, false otherwise.
-
-    $tests = $tl->getTestCasesForTestSuite(123,1,1);
-
-=cut
 
 sub getTestCasesForTestSuite {
     my ($self,$testsuite_id,$deep,$details) = @_;
@@ -937,23 +504,6 @@ sub getTestCasesForTestSuite {
     return [];
 }
 
-=head2 B<getTestCaseByExternalId (case_id,version)>
-
-Gets the test case with the given external ID (e.g. projprefix-123) at provided version.
-
-=over 4
-
-=item STRING C<CASE ID> - desired external case ID
-
-=item STRING C<VERSION> - desired test case version.  Defaults to most recent version.
-
-=back
-
-Returns desired case definition hash, false otherwise.
-
-    $case = $tl->getTestCaseByExternalId('eee-123');
-
-=cut
 
 sub getTestCaseByExternalId {
     my ($self,$case_id,$version) = @_;
@@ -972,23 +522,6 @@ sub getTestCaseByExternalId {
     return 0;
 }
 
-=head2 B<getTestCaseById (case_id,version)>
-
-Gets the test case with the given internal ID at provided version.
-
-=over 4
-
-=item STRING C<CASE ID> - desired internal case ID
-
-=item STRING C<VERSION> - desired test case version.  Defaults to most recent version.
-
-=back
-
-Returns desired case definition hash, false otherwise.
-
-    $case = $tl->getTestCaseById(28474,5);
-
-=cut
 
 sub getTestCaseById {
     my ($self,$case_id,$version) = @_;
@@ -1007,32 +540,9 @@ sub getTestCaseById {
     return 0;
 }
 
-=head2 B<getTestCaseByName (case_name,suite_name,project_name,tc_path_nameversion)>
-
-Gets the test case with the given internal ID at provided version.
-
-=over 4
-
-=item STRING C<CASE NAME> - desired internal case ID
-
-=item STRING C<SUITE NAME> - parent suite's name
-
-=item STRING C<PROJECT NAME> - parent project's name
-
-=item STRING C<TC_PATH_NAME> (optional)- Full path to TC. Please see documentation for more info: http://jetmore.org/john/misc/phpdoc-testlink193-api/TestlinkAPI/TestlinkXMLRPCServer.html#getTestCaseIDByName
-
-=item STRING C<VERSION> (optional)- desired test case version.  Defaults to most recent version.
-
-=back
-
-Returns desired case definition hash, false otherwise.
-
-    $case = $tl->getTestCaseByName('nugCase','gravySuite','chickenProject');
-
-=cut
 
 sub getTestCaseByName {
-    my ($self, $casename, $suitename, $projectname, $testcasepathname, $version) = @_;
+    my ($self, $casename, $suitename, $projectname, $testcasepathname) = @_;
     confess("Object parameters must be called by an instance") unless ref($self);
 
     my $input = {
@@ -1050,21 +560,6 @@ sub getTestCaseByName {
     return 0;
 }
 
-=head2 B<getTestCaseAttachments (case_ext_id)>
-
-Gets the attachments for some case.
-
-=over 4
-
-=item STRING C<CASE ID> - desired external case ID
-
-=back
-
-Returns desired attachment definition hash, false otherwise.  Content key is the file base64 encoded.
-
-    $att = $tl->getTestCaseAttachments('CP-222');
-
-=cut
 
 sub getTestCaseAttachments {
     my ($self, $case_ext_id) = @_;
@@ -1083,21 +578,6 @@ sub getTestCaseAttachments {
     return 0;
 }
 
-=head2 B<getTestPlansForProject (project_id)>
-
-Gets the test plans within given project id
-
-=over 4
-
-=item STRING C<PROJECT ID> - project ID
-
-=back
-
-Returns desired test plan definition hashes, false otherwise.
-
-    $plans = $tl->getTestPlansForProject(23);
-
-=cut
 
 sub getTestPlansForProject {
     my ($self,$project_id) = @_;
@@ -1115,23 +595,6 @@ sub getTestPlansForProject {
     return 0;
 }
 
-=head2 B<getTestPlanByName (plan_name,project_name)>
-
-Gets the test plan within given project name
-
-=over 4
-
-=item STRING C<PLAN NAME> - desired test plan name
-
-=item STRING C<PROJECT NAME> - project name
-
-=back
-
-Returns desired test plan definition hash, false otherwise.
-
-    $suites = $tl->getTestPlanByName('nugs','gravy');
-
-=cut
 
 # I find it highly bizarre that the only 'by name' method exists for test plans, and it's the only test plan getter.
 sub getTestPlanByName {
@@ -1151,21 +614,6 @@ sub getTestPlanByName {
     return 0;
 }
 
-=head2 B<getBuildsForTestPlan (plan_id)>
-
-Gets the builds for given test plan
-
-=over 4
-
-=item STRING C<PLAN ID> - desired test plan ID
-
-=back
-
-Returns desired builds' definition hashes, false otherwise.
-
-    $builds = $tl->getBuildsForTestPlan(1234);
-
-=cut
 
 sub getBuildsForTestPlan {
     my ($self,$plan_id) = @_;
@@ -1183,25 +631,6 @@ sub getBuildsForTestPlan {
     return 0;
 }
 
-=head2 B<getTestCasesForTestPlan (plan_id)>
-
-Gets the cases in provided test plan
-
-=over 4
-
-=item STRING C<PLAN ID> - desired test plan ID
-
-=back
-
-Returns desired tests' definition hashes sorted by parent test plan ID, false otherwise.
-
-    Example output:
-    { 1234 => [{case1},{case2},...], 33212 => [cases...]}
-
-    Example usage:
-    $builds = $tl->getTestCasesForTestPlan(1234);
-
-=cut
 
 sub getTestCasesForTestPlan {
    my ($self,$plan_id) = @_;
@@ -1219,21 +648,6 @@ sub getTestCasesForTestPlan {
     return 0;
 }
 
-=head2 B<getLatestBuildForTestPlan (plan_id)>
-
-Gets the latest build for the provided test plan
-
-=over 4
-
-=item STRING C<PLAN ID> - desired test plan ID
-
-=back
-
-Returns desired build definition hash, false otherwise.
-
-    $build = $tl->getLatestBuildForTestPlan(1234);
-
-=cut
 
 sub getLatestBuildForTestPlan {
     my ($self,$plan_id) = @_;
@@ -1257,23 +671,6 @@ sub getLatestBuildForTestPlan {
     return 0;
 }
 
-=head2 B<getBuildByName (build_name,project_id)>
-
-Gets the desired build in project id by name
-
-=over 4
-
-=item STRING C<BUILD NAME> - desired build's name
-
-=item INTEGER C<PROJECT ID> - desired test project ID
-
-=back
-
-Returns desired build definition hash, false otherwise.
-
-    $build = $tl->getBuildByName('foo',1234);
-
-=cut
 
 #TODO cache stuff, don't require proj id?
 sub getBuildByName {
@@ -1290,23 +687,6 @@ sub getBuildByName {
     return 0;
 }
 
-=head1 REPORTING METHODS
-
-=head2 B<getTotalsForTestPlan (plan_id)>
-
-Gets the results summary for a test plan, even though what you really want is results by build/platform
-
-=over 4
-
-=item INTEGER C<PLAN ID> - desired test plan
-
-=back
-
-Returns Hash describing test results.
-
-    $res = $tl->getTotalsForTestPlan(2322);
-
-=cut
 
 sub getTotalsForTestPlan {
     my ($self,$plan_id) = @_;
@@ -1326,45 +706,11 @@ sub getTotalsForTestPlan {
     return 0;
 }
 
-=head1 EXPORT/IMPORT METHODS
-
-=head2 B<dump([project,get_attachments,flatten])>
-
-Return all info for all (or only the specified) projects.
-It will have the entire testsuite hierarchy and it's tests/attachments in an array of HASHREFs.
-The idea would be that you then could encode as JSON/XML as a backup, or to facilitate migration to other systems.
-
-The project hashes will be what you would expect from getProjectByName calls.
-Those will have a key 'testsuites' with a list of it's child testsuites.
-These testsuites will themselves have 'testsuites' and 'test' keys describing their children.
-Both the test and testsuite hashes will have an 'attachment' parameter with the base64 encoded attachment as a string if the get_attachments option is passed.
-
-WARNING: I have observed some locking related issues with cases/suites etc.
-Sometimes calls to get tests/suites during dumps fails, sometimes subsequent calls to getTestSuites/getTestCasesForTestSuite fail.
-If you are experiencing issues, try to put some wait() in there until it starts behaving right.
-Alternatively, just XML dump the whole project and use XML::Simple or somesuch to get the project tree.
-
-ALSO: Attachment getting is not enabled due to the underlying XMLRPC calls appearing not to work.  This option will be ignored until a workaround can be found.
-
-=over 4
-
-=item INTEGER C<PROJECT NAME> (optional) - desired project
-=item BOOLEAN C<GET ATTACHMENTS> (optional) - whether or not to get attachments.  Default false.
-=item BOOLEAN C<FLATTEN> (optional) - Whether to return a flattened structure (you will need to corellate parent to child yourself, but this is faster due to not walking the tree).  Preferred output for those not comfortable with doing tail recursion.
-
-=back
-
-Returns ARRAYREF describing everything.
-
-    $ultradump = $tl->dump();
-    $dumpWithAtts = $tl->dump('TestProject',1);
-    $flatDump = $tl->dump('testProj',0,1);
-
-=cut
 
 sub dump {
     my ($self,$project,$attachment,$flat) = @_;
     confess("Object parameters must be called by an instance") unless ref($self);
+    confess("Getting attachments not yet implemented") if $attachment;
 
     my $res = $self->_cacheProjectTree($project,$flat);
     return [] if !$res;
@@ -1398,7 +744,7 @@ sub _cacheProjectTree {
             next if $project && $project ne $projhash->{'name'} && (defined($projhash->{'type'}) && $projhash->{'type'} eq 'project');
         }
 
-        #If Testsuites are not defined, this must be a TS which we have not traversed yet, so go and get it
+        #If TestSuites are not defined, this must be a TS which we have not traversed yet, so go and get it
         if (exists($projhash->{'type'}) && $projhash->{'type'} eq 'project') {
             $projhash->{'testsuites'} = $self->getTLDTestSuitesForProject($projhash->{'id'},$get_tests);
         } else {
@@ -1416,7 +762,6 @@ sub _cacheProjectTree {
 
     #Keep this for simple searches in the future.
     $self->{'flattree'} = clone \@flattener;
-    my @debuglist = map {$_->{'tests'}} @flattener;
     return $self->{'flattree'} if $flat;
     return $self->_expandTree($project,@flattener);
 }
@@ -1490,28 +835,663 @@ sub _expandTree {
 
 __END__
 
+=pod
+
+=encoding UTF-8
+
+=head1 NAME
+
+TestLink::API - Provides an interface to TestLink's XMLRPC api via HTTP
+
+=head1 VERSION
+
+version 0.011
+
+=head1 SYNOPSIS
+
+    use TestLink::API;
+
+    my $tl = TestLink::API->new('http://tl.test/testlink/lib/api/xmlrpc/v1/xmlrpc.php', 'gobbledygook123');
+
+    #Look up test definitions
+    my $projects = $tl->getProjects();
+    my $suites = $tl->getTLDTestSuitesForProject($projects->[0]->{'id'});
+    my $childsuites = $tl->getTestSuitesForTestSuite($suites->[0]->{'id'});
+    my $tests = $tl->getTestCasesForTestSuite($childsuites->[0]->{'id'});
+
+    #Look up test plans/builds
+    my $plans = $tl->getTestPlansForProject($projects->[0]->{'id'});
+    my $tests2 = $tl->getTestCasesForTestPlan($plans->[0]->{'id'});
+    my $builds = $tl->getBuildsForTestPlan($plans->[0]->{'id'});
+
+    #Set results
+    my $testResults = doSomethingReturningBoolean();
+    my $results = $tl->reportTCResult($tests2->[0]->{'id'},$plans->[0]->{'id'},$builds->[0]->{'id'}, $testResults ? 'p' : 'f');
+    $tl->uploadExecutionAttachment($results->{'id'},'test.txt','text/plain',encode_base64('MOO MOO MOOOOOO'),'bovine emissions','whee')
+
+=head1 DESCRIPTION
+
+C<TestLink::API> provides methods to access an existing TestLink account.  You can then do things like look up tests, set statuses and create builds from lists of tests.
+The getter methods cache the test tree up to whatever depth is required by your getter calls.  This is to speed up automated creation/reading/setting of the test db based on existing automated tests.
+Cache expires at the end of script execution. (TODO use memcached controlled by constructor, with create methods invalidating cache?)
+Getter/setter methods that take args assume that the relevant project/testsuite/test/plan/build provided exists (TODO: use cache to check exists, provide more verbose error reason...), and returns false if not.
+Create methods assume desired entry provided is not already in the DB (TODO (again): use cache to check exists, provide more verbose error reason...), and returns false if not.
+It is by no means exhaustively implementing every TestLink API function.  Designed with TestLink 1.9.9, but will likely work on (some) other versions.
+
+=head1 CONSTRUCTOR
+
+=head2 B<new (api_url, key)>
+
+Creates new C<TestLink::API> object.
+
+=over 4
+
+=item C<API URL> - URL to your testlink API endpoint.
+
+=item C<KEY> - TestLink API key.
+
+=back
+
+Returns C<TestLink::API> object if login is successful.
+
+    my $tl = TestLink::API->new('http://tl.test/testlink/lib/api/xmlrpc/v1/xmlrpc.php', 'gobbledygook123');
+
+=head1 PROPERTIES
+
+=over 4
+
+apiurl and apikey can be accessed/set:
+
+$url = $tl->apiurl;
+$tl = $tl->apiurl('http//some.new.url/foo.php');
+
+=back
+
+=head1 CREATE METHODS
+
+=head2 B<createTestPlan (name, project, [notes, active, public])>
+
+Creates new Test plan with given name in the given project.
+
+=over 4
+
+=item STRING C<NAME> - Desired test plan name.
+
+=item STRING C<PROJECT> - The name of some project existing in TestLink.
+
+=item STRING C<NOTES> (optional) - Additional description of test plan.  Default value is 'res ipsa loquiter'
+
+=item BOOLEAN C<ACTIVE> (optional) - Whether or not the test plan is active.  Default value is true.
+
+=item BOOLEAN C<PUBLIC> (optional) - Whether or not the test plan is public.  Default is true.
+
+=back
+
+Returns (integer) test plan ID if creation is successful.
+
+    my $tpid = $tl->createTestPlan('shock&awe', 'enduringfreedom');
+
+=head2 B<createBuild (test_plan_id, name, [notes])>
+
+Creates new 'Build' (test run in common parlance) from given test plan having given name and notes.
+
+=over 4
+
+=item INTEGER C<TEST PLAN ID> - ID of test plan to base test run on.
+
+=item STRING C<NAME> - Desired name for test run.
+
+=item STRING C<NOTES> (optional) - Additional description of run.  Default value is 'res ipsa loquiter'.
+
+=back
+
+Returns true if case addition is successful, false otherwise.
+
+    $tl->createBuild(1234, "Bossin' up", 'Crushing our enemies, seeing them driven before us and hearing the lamentations of their support engineers.');
+
+=head2 B<createTestSuite (project_id, name, [details, parent_testsuite_id, order])>
+
+Creates new TestSuite (folder of tests) in the database of test specifications under given project id having given name and details.
+Optionally, can have a parent test suite (this is an analog to a hierarchical file tree after all) and what order to have this suite be amongst it's peers.
+
+=over 4
+
+=item INTEGER C<PROJECT ID> - ID of project this test suite should be under.
+
+=item STRING C<NAME> - Desired name of test suite.
+
+=item STRING C<DETAILS> (optional) - Description of test suite.  Default value is 'res ipsa loquiter'.
+
+=item INTEGER C<PARENT TESTSUITE ID> (optional) - Parent test suite ID.  Defaults to top level of project.
+
+=item INTEGER C<ORDER> (optional) - Desired order amongst peer testsuites.  Defaults to last in list.
+
+=back
+
+Returns (integer) build ID on success, false otherwise.
+
+    $tl->createTestSuite(1, 'broken tests', 'Tests that should be reviewed', 2345, -1);
+
+=head2 B<createTestProject (name, case_prefix, [notes, options, active, public])>
+
+Creates new Project (Database of testsuites/tests) with given name and case prefix.
+Optionally, can have notes, options, set the project as active/inactive and public/private.
+
+=over 4
+
+=item STRING C<NAME> - Desired name of project.
+
+=item STRING C<CASE PREFIX> - Desired prefix of project's external test case IDs.
+
+=item STRING C<NOTES> (optional) - Description of project.  Default value is 'res ipsa loquiter'.
+
+=item HASHREF{BOOLEAN} C<OPTIONS> (optional) - Hash with keys: requirementsEnabled,testPriorityEnabled,automationEnabled,inventoryEnabled.
+
+=item BOOLEAN C<ACTIVE> (optional) - Whether to mark the project active or not.  Default True.
+
+=item BOOLEAN C<PUBLIC> (optional) - Whether the project is public or not.  Default true.
+
+=back
+
+Returns (integer) project ID on success, false otherwise.
+
+    $tl->createTestProject('Widgetronic 4000', 'Tests for the whiz-bang new product', {'inventoryEnabled=>true}, true, true);
+
+=head2 B<createTestCase (name, test_suite_id, test_project_id, author, summary, steps, preconditions, execution, order)>
+
+Creates new test case with given test suite id and project id.
+Author, Summary and Steps are mandatory for reasons that should be obvious to any experienced QA professional.
+Execution type and Test order is optional.
+
+=over 4
+
+=item STRING C<NAME> - Desired name of test case.
+
+=item INTEGER C<TEST SUITE ID> - ID of parent test suite.
+
+=item INTEGER C<TEST PROJECT ID> - ID of parent project
+
+=item STRING C<AUTHOR> - Author of test case.
+
+=item STRING C<SUMMARY> - Summary of test case.
+
+=item STRING C<STEPS> - Test steps.
+
+=item STRING C<PRECONDITIONS> - Prereqs for running the test, if any.
+
+=item STRING C<EXECUTION> (optional) - Execution type.  Defaults to 'manual'.
+
+=item INTEGER C<ORDER> (optional) - Order of test amongst peers.
+
+=back
+
+Returns (HASHREF) with Test Case ID and Test Case External ID on success, false otherwise.
+
+    $tl->createTestCase('Verify Whatsit Throbs at correct frequency', 123, 456, 'Gnaeus Pompieus Maximus', 'Make sure throbber on Whatsit doesn't work out of harmony with other throbbers', '1. Connect measurement harness. 2. ??? 3. PROFIT!', 'automated', 2);
+
+=head1 SETTER METHODS
+
+=head2 B<reportTCResult (case_id, test_plan_id, build_id, status, [platform, notes, bug id])>
+
+Report results of a test case with a given ID, plan and build ID.  Set case results to status given.
+Platform is mandatory if available, otherwise optional.
+Notes and Bug Ids for whatever tracker you use are optional.
+
+=over 4
+
+=item INTEGER C<CASE ID> - Desired test case.
+
+=item INTEGER C<TEST PLAN ID> - ID of relevant test plan.
+
+=item INTEGER C<BUILD ID> - ID of relevant build.
+
+=item STRING C<STATUS> - Desired Test Status Code.  Codes not documented anywhere but in your cfg/const.inc.php of the TestLink Install.
+
+=item STRING C<PLATFORM> (semi-optional) - Relevant platform tested on.  Accepts both platform name and ID, if it looks_like_number, uses platform_id
+
+=item STRING C<NOTES> (optional) - Relevant information gleaned during testing process.
+
+=item STRING C<BUG ID> (optional) - Relevant bug ID for regression tests, or if you auto-open bugs based on failures.
+
+=back
+
+Returns project ID on success, false otherwise.
+
+    $tl->reportTCResult('T-1000', 7779311, 8675309, 'Tool Failure', 'Skynet Infiltration Model 1000', 'Catastrophic systems failure due to falling into vat of molten metal' 'TERMINATOR-2');
+
+=head2 B<addTestCaseToTestPlan (test_plan_id, test_case_id, project_id, test_version, [sut_platform])>
+
+Creates new Test plan with given name in the given project.
+
+=over 4
+
+=item INTEGER C<TEST PLAN ID> - Desired test plan.
+
+=item STRING C<TEST CASE ID> - The 'external' name of some existing test in TestLink, e.g. TP-12.
+
+=item INTEGER C<PROJECT ID> - The ID of some project in testlink
+
+=item INTEGER C<TEST VERSION> - The desired version of the test to add.
+
+=item STRING C<SUT PLATFORM> (semi-optional) - The name of the desired platform to run on for this test (if any).
+
+=item INTEGER C<EXECUTION ORDER> (optional) - The order in which to execute this test amongst it's peers.
+
+=item INTEGER C<URGENCY> (optional) - The priority of the case in the plan.
+
+=back
+
+Returns true if case addition is successful.
+
+    $tl->addTestCaseToTestPlan(666, 'cp-90210', 121, '3.11', 'OS2/WARP', 3, 1);
+
+=head2 B<uploadExecutionAttachment (execution_id,filename,mimetype,content,[title,description])>
+
+Uploads the provided file and associates it with the given execution.
+
+=over 4
+
+=item INTEGER C<EXECUTION ID> - ID of a successful execution, such as the id key from the hash that is returned by reportTCResult.
+
+=item STRING C<FILENAME> - The name you want this file to appear as.
+
+=item INTEGER C<MIMETYPE> - The mimetype of the file uploaded, so we can tell the browser what to do with it when downloaded
+
+=item INTEGER C<CONTENT> - The base64 encoded content of the file you want to upload.
+
+=item STRING C<TITLE> (optional) - A title for this attachment.
+
+=item INTEGER C<DESCRIPTION> (optional) - A short description of who/what/why this was attached.
+
+=back
+
+Returns true if attachment addition is successful.
+
+    $tl->uploadExecutionAttachment(1234, 'moo.txt', 'text/cow', APR::Base64::encode('MOO MOO MOOOOOO'), 'MOO', 'Test observed deranged bleatings of domestic ungulates, please investigate.');
+
+=head2 B<uploadTestCaseAttachment (case_id,filename,mimetype,content,[title,description])>
+
+Uploads the provided file and associates it with the given execution.
+
+=over 4
+
+=item INTEGER C<CASE ID> - ID of desired test case
+
+=item STRING C<FILENAME> - The name you want this file to appear as.
+
+=item INTEGER C<MIMETYPE> - The mimetype of the file uploaded, so we can tell the browser what to do with it when downloaded
+
+=item INTEGER C<CONTENT> - The base64 encoded content of the file you want to upload.
+
+=item STRING C<TITLE> (optional) - A title for this attachment.
+
+=item INTEGER C<DESCRIPTION> (optional) - A short description of who/what/why this was attached.
+
+=back
+
+Returns true if attachment addition is successful.
+
+    $tl->uploadTestCaseAttachment(1234, 'doStuff.t', 'text/perl', APR::Base64::encode($slurped_file_content), 'doStuff.t', 'Test File.');
+
+=head1 GETTER METHODS
+
+=head2 B<getProjects ()>
+
+Get all available projects
+
+Returns array of project definition hashes, false otherwise.
+
+    $projects = $tl->getProjects;
+
+=head2 B<getProjectByName ($project)>
+
+Gets some project definition hash by it's name
+
+=over 4
+
+=item STRING C<PROJECT> - desired project
+
+=back
+
+Returns desired project def hash, false otherwise.
+
+    $projects = $tl->getProjectByName('FunProject');
+
+=head2 B<getProjectByID ($project)>
+
+Gets some project definition hash by it's ID
+
+=over 4
+
+=item INTEGER C<PROJECT> - desired project
+
+=back
+
+Returns desired project def hash, false otherwise.
+
+    $projects = $tl->getProjectByID(222);
+
+=head2 B<getTLDTestSuitesForProject (project_id,get_tests)>
+
+Gets the testsuites in the top level of a project
+
+=over 4
+
+=item STRING C<PROJECT ID> - desired project's ID
+=item BOOLEAN C<GET TESTS> - Get tests for suites returned, set them as 'tests' key in hash
+
+=back
+
+Returns desired testsuites' definition hashes, 0 on error and -1  when there is no such project.
+
+    $projects = $tl->getTLDTestSuitesForProject(123);
+
+=head2 B<getTestSuitesForTestSuite (testsuite_id,get_tests)>
+
+Gets the testsuites that are children of the provided testsuite.
+
+=over 4
+
+=item STRING C<TESTSUITE ID> - desired parent testsuite ID
+=item STRING C<GET TESTS> - whether to get child tests as well
+
+=back
+
+Returns desired testsuites' definition hashes, false otherwise.
+
+    $suites = $tl->getTestSuitesForTestSuite(123);
+    $suitesWithCases = $tl->getTestSuitesForTestSuite(123,1);
+
+=head2 B<getTestSuitesByName (project_id,testsuite_name,do_regex)>
+
+Gets the testsuite(s) that match given name inside of given project name.
+WARNING: this will slurp the entire testsuite tree.  This can take a while on large projects, but the results are cached so that subsequent calls are not as onerous.
+
+=over 4
+
+=item STRING C<PROJECT ID> - ID of project holding this testsuite
+
+=item STRING C<TESTSUITE NAME> - desired parent testsuite name
+
+=item BOOLEAN C<DO REGEX> (optional) - whether or not PROJECT NAME is a regex (default false, uses 'eq' to compare).
+
+=back
+
+Returns desired testsuites' definition hashes, false otherwise.
+
+    $suites = $tl->getTestSuitesByName(321, 'hugSuite');
+    $suitesr = $tl->getTestSuitesByName(123, qr/^hug/, 1);
+
+=head2 B<getTestSuiteByID (testsuite_id)>
+
+Gets the testsuite with the given ID.
+
+=over 4
+
+=item STRING C<TESTSUITE_ID> - TestSuite ID.
+
+=back
+
+Returns desired testsuite definition hash, false otherwise.
+
+    $tests = $tl->getTestSuiteByID(123);
+
+=head2 B<getTestCasesForTestSuite (testsuite_id,recurse,details)>
+
+Gets the testsuites that match given name inside of given project name.
+
+=over 4
+
+=item STRING C<TESTSUITE_ID> - TestSuite ID.
+
+=item BOOLEAN C<RECURSE> - Search testsuite tree recursively for tests below the provided testsuite
+
+=item BOOLEAN C<RETURNMODE> (optional) - whether or not to return more detailed test info (steps,summary,expected results).  Defaults to false.
+
+=back
+
+Returns desired case definition hashes, false otherwise.
+
+    $tests = $tl->getTestCasesForTestSuite(123,1,1);
+
+=head2 B<getTestCaseByExternalId (case_id,version)>
+
+Gets the test case with the given external ID (e.g. projprefix-123) at provided version.
+
+=over 4
+
+=item STRING C<CASE ID> - desired external case ID
+
+=item STRING C<VERSION> - desired test case version.  Defaults to most recent version.
+
+=back
+
+Returns desired case definition hash, false otherwise.
+
+    $case = $tl->getTestCaseByExternalId('eee-123');
+
+=head2 B<getTestCaseById (case_id,version)>
+
+Gets the test case with the given internal ID at provided version.
+
+=over 4
+
+=item STRING C<CASE ID> - desired internal case ID
+
+=item STRING C<VERSION> - desired test case version.  Defaults to most recent version.
+
+=back
+
+Returns desired case definition hash, false otherwise.
+
+    $case = $tl->getTestCaseById(28474,5);
+
+=head2 B<getTestCaseByName (case_name,suite_name,project_name,tc_path_nameversion)>
+
+Gets the test case with the given internal ID at provided version.
+
+=over 4
+
+=item STRING C<CASE NAME> - desired internal case ID
+
+=item STRING C<SUITE NAME> - parent suite's name
+
+=item STRING C<PROJECT NAME> - parent project's name
+
+=item STRING C<TC_PATH_NAME> (optional)- Full path to TC. Please see documentation for more info: http://jetmore.org/john/misc/phpdoc-testlink193-api/TestlinkAPI/TestlinkXMLRPCServer.html#getTestCaseIDByName
+
+=item STRING C<VERSION> (optional)- desired test case version.  Defaults to most recent version.
+
+=back
+
+Returns desired case definition hash, false otherwise.
+
+    $case = $tl->getTestCaseByName('nugCase','gravySuite','chickenProject');
+
+=head2 B<getTestCaseAttachments (case_ext_id)>
+
+Gets the attachments for some case.
+
+=over 4
+
+=item STRING C<CASE ID> - desired external case ID
+
+=back
+
+Returns desired attachment definition hash, false otherwise.  Content key is the file base64 encoded.
+
+    $att = $tl->getTestCaseAttachments('CP-222');
+
+=head2 B<getTestPlansForProject (project_id)>
+
+Gets the test plans within given project id
+
+=over 4
+
+=item STRING C<PROJECT ID> - project ID
+
+=back
+
+Returns desired test plan definition hashes, false otherwise.
+
+    $plans = $tl->getTestPlansForProject(23);
+
+=head2 B<getTestPlanByName (plan_name,project_name)>
+
+Gets the test plan within given project name
+
+=over 4
+
+=item STRING C<PLAN NAME> - desired test plan name
+
+=item STRING C<PROJECT NAME> - project name
+
+=back
+
+Returns desired test plan definition hash, false otherwise.
+
+    $suites = $tl->getTestPlanByName('nugs','gravy');
+
+=head2 B<getBuildsForTestPlan (plan_id)>
+
+Gets the builds for given test plan
+
+=over 4
+
+=item STRING C<PLAN ID> - desired test plan ID
+
+=back
+
+Returns desired builds' definition hashes, false otherwise.
+
+    $builds = $tl->getBuildsForTestPlan(1234);
+
+=head2 B<getTestCasesForTestPlan (plan_id)>
+
+Gets the cases in provided test plan
+
+=over 4
+
+=item STRING C<PLAN ID> - desired test plan ID
+
+=back
+
+Returns desired tests' definition hashes sorted by parent test plan ID, false otherwise.
+
+    Example output:
+    { 1234 => [{case1},{case2},...], 33212 => [cases...]}
+
+    Example usage:
+    $builds = $tl->getTestCasesForTestPlan(1234);
+
+=head2 B<getLatestBuildForTestPlan (plan_id)>
+
+Gets the latest build for the provided test plan
+
+=over 4
+
+=item STRING C<PLAN ID> - desired test plan ID
+
+=back
+
+Returns desired build definition hash, false otherwise.
+
+    $build = $tl->getLatestBuildForTestPlan(1234);
+
+=head2 B<getBuildByName (build_name,project_id)>
+
+Gets the desired build in project id by name
+
+=over 4
+
+=item STRING C<BUILD NAME> - desired build's name
+
+=item INTEGER C<PROJECT ID> - desired test project ID
+
+=back
+
+Returns desired build definition hash, false otherwise.
+
+    $build = $tl->getBuildByName('foo',1234);
+
+=head1 REPORTING METHODS
+
+=head2 B<getTotalsForTestPlan (plan_id)>
+
+Gets the results summary for a test plan, even though what you really want is results by build/platform
+
+=over 4
+
+=item INTEGER C<PLAN ID> - desired test plan
+
+=back
+
+Returns Hash describing test results.
+
+    $res = $tl->getTotalsForTestPlan(2322);
+
+=head1 EXPORT/IMPORT METHODS
+
+=head2 B<dump([project,get_attachments,flatten])>
+
+Return all info for all (or only the specified) projects.
+It will have the entire testsuite hierarchy and it's tests/attachments in an array of HASHREFs.
+The idea would be that you then could encode as JSON/XML as a backup, or to facilitate migration to other systems.
+
+The project hashes will be what you would expect from getProjectByName calls.
+Those will have a key 'testsuites' with a list of it's child testsuites.
+These testsuites will themselves have 'testsuites' and 'test' keys describing their children.
+Both the test and testsuite hashes will have an 'attachment' parameter with the base64 encoded attachment as a string if the get_attachments option is passed.
+
+WARNING: I have observed some locking related issues with cases/suites etc.
+Sometimes calls to get tests/suites during dumps fails, sometimes subsequent calls to getTestSuites/getTestCasesForTestSuite fail.
+If you are experiencing issues, try to put some wait() in there until it starts behaving right.
+Alternatively, just XML dump the whole project and use XML::Simple or your tool of choice to get the project tree.
+
+ALSO: Attachment getting is not enabled due to the underlying XMLRPC calls appearing not to work.  This option will be ignored until a workaround can be found.
+
+=over 4
+
+=item INTEGER C<PROJECT NAME> (optional) - desired project
+=item BOOLEAN C<GET ATTACHMENTS> (optional) - whether or not to get attachments.  Default false. UNIMPLEMENTED.
+=item BOOLEAN C<FLATTEN> (optional) - Whether to return a flattened structure (you will need to correlate parent to child yourself, but this is faster due to not walking the tree).  Preferred output for those not comfortable with doing tail recursion.
+
+=back
+
+Returns ARRAYREF describing everything.
+
+    $ultradump = $tl->dump();
+    $dumpWithAtts = $tl->dump('TestProject',1);
+    $flatDump = $tl->dump('testProj',0,1);
+
 =head1 SEE ALSO
 
 L<XMLRPC::Lite>
-
-=head1 REPOSITORY
-
-L<https://github.com/teodesian/TestLink-Perl>
-
-=head1 AUTHOR
-
-George Baugh <teodesian@cpan.org>
-
-=head1 CONTRIBUTORS
-
-Neil Bowers <neil@bowers.com> - Fixed minor distribution issues for 0.010
 
 =head1 SPECIAL THANKS
 
 cPanel, Inc. graciously funded the initial work on this project.
 
+=head1 AUTHOR
+
+George S. Baugh <teodesian@cpan.org>
+
+=head1 CONTRIBUTOR
+
+=for stopwords Neil Bowers
+
+Neil Bowers <neil@bowers.com>
+
+=head1 SOURCE
+
+The development version is on github at L<http://github.com/teodesian/TestLink-Perl>
+and may be cloned from L<git://github.com/teodesian/TestLink-Perl.git>
+
 =head1 COPYRIGHT AND LICENSE
 
 This software is copyright (c) 2014 by George S. Baugh.
 
-This is free software; you can redistribute it and/or modify it under the same terms as the Perl 5 programming language system itself.
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
